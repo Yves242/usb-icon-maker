@@ -1,6 +1,7 @@
-from lib2to3.pytree import convert
 import os
 from PIL import Image
+from colorama import init
+from termcolor import colored
 
 # Simple function that cleans screen. Returns nothing
 def cleanScreen():
@@ -35,7 +36,7 @@ def fileExists(filename):
     
     return False
 
-# Simple function that makes the 'autorun.inf' file. Returns Boolean
+# Simple function that makes the 'autorun.inf' file. Returns Boolean, String as notification
 def makeAutorunFile(imgFile):
     
     # if 'autorun.inf' already exists, ask user what to do.
@@ -45,8 +46,7 @@ def makeAutorunFile(imgFile):
             decision = input("'autorun.inf' file already exists. \nYou may have already placed an icon on this device before.\n\nOverwrite to add new icon to this device? [y/n]\n")        
             cleanScreen()
             if (decision in ("n", "N")):
-                print("Aborting process. User decided not to overwrite 'autorun.inf'.\n")
-                return False
+                return False, "Aborting process. User decided not to overwrite 'autorun.inf' file.\n"
             elif (decision not in ("y", "Y")):
                 print("Please type either 'y' or 'n' only.\n")
 
@@ -70,10 +70,9 @@ def makeAutorunFile(imgFile):
     with open('autorun.inf', 'w') as f:
         f.write('[AutoRun.Amd64]\nicon="' + icoFilename + '"\n\n[AutoRun]\nicon="' + icoFilename + '"')
             
-    print("Successfully generated new autorun.inf file.\n")
-    return True
+    return True, "Successfully added image as label."
 
-# Function that lets user choose icons based on image files. Returns Boolean
+# Function that lets user choose icons based on image files. Returns Boolean, String as notification text
 def chooseImagesAsIcons():
     
     # clean screen
@@ -87,13 +86,9 @@ def chooseImagesAsIcons():
     icoFiles = findExtensionFiles(".ico")
     imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles + icoFiles
 
-    if (len(imgFiles) == 0):
+    if (len(imgFiles) == 0):      
 
-        print("We found out that there are no image files in the current folder.")
-        print("Image files have extensions .png, .jpg, .jpeg, .gif, and .ico\n")
-        print("Place images inside the folder where this program is located. ('" + os.getcwd() + "').")
-
-        return False
+        return False, "(see below)\nWe found out that there are no image files in the current folder.\nImage files have extensions .png, .jpg, .jpeg, .gif, and .ico\n\nPlace images inside the folder where this program is located. \n('" + os.getcwd() + "')."
 
     elif (len(imgFiles) > 0):     
         
@@ -122,28 +117,28 @@ def chooseImagesAsIcons():
                 for img in imgFiles:
                     print("[" + str(index+1) +"] " + img)
                     index = index + 1
+                print("")
 
                 if (intFailed):
                     errorCount = errorCount + 1
-                    print("\nInput error #" + str(errorCount) + ": Please only use numbers.")
+                    print(colored("Input error #" + str(errorCount) + ": Please only use numbers.", "red"))
                     # reset failure boolean switches
                     intFailed = False   
                     indexBoundError = False
 
                 if (indexBoundError): 
                     errorCount = errorCount + 1                   
-                    print("\nInput error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(imgFiles)) + ".")
+                    print(colored("Input error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(imgFiles)) + ".", "red"))
                     # reset failure boolean switches
                     intFailed = False   
                     indexBoundError = False                
 
                 # ask user what file to use
-                choice = input("\nWhat file would you like to use? (To exit, type 'exit') \nChoice number: ")
+                choice = input("What file would you like to use? (To exit, type 'exit') \nChoice number: ")
                 
                 # if user placed exit, stop function and program.
                 if (choice.upper() == "EXIT"):
-                    print("User decided to exit. Program halted.")
-                    return False
+                    return False, "User decided to exit option 1."
 
                 # int validity check
                 if (choice.isnumeric()):
@@ -154,7 +149,7 @@ def chooseImagesAsIcons():
             # At this point, the user has a valid integer choice input      
             if ((int(choice) > 0) and (int(choice) <= len(imgFiles))):
                 cleanScreen()
-                print("User selected file '" + imgFiles[int(choice)-1] + "'.\n")
+                print(colored("User selected image file '" + imgFiles[int(choice)-1] + "'.\n", "green"))
 
                 # make autorun.inf file using icon file of choice            
                 return makeAutorunFile(imgFiles[int(choice)-1])
@@ -164,28 +159,43 @@ def chooseImagesAsIcons():
                 # index bound error
                 indexBoundError = True
 
-
     else:
-        print("Unexpected error occurred while finding icon files.")
-        return False
+        return False, "Unexpected program error occurred while searching for files."
 
 # This is where everything starts. Returns nothing
 def menu():
-
+    
+    # initialize for colors
+    init()
+    
     wrongChoice = False
     errorCounter = 0
+    notification = (True, "")
 
     # Do always until user exits.
     while (True):
 
         cleanScreen()
+
+        if (notification[1] != ""):
+
+            # print out notification based on success/failure
+            if (notification[0] == True):                
+                print("Status: " + colored(notification[1] + "\n", 'green'))
+            else:
+                print("Status: " + colored(notification[1] + "\n", 'yellow'))
+
+            # reset boolean switch
+            notification = (True, "") 
+
+        print(colored("USB icon maker (v 2.0.1)\n", "blue"))
         print("What would you like to do?\n")
         print("[1] Use images as icon for your USB Drive")
         print("[0] Exit\n")
 
         # notification text upon wrong choice
         if (wrongChoice):
-            print("Error #" + str(errorCounter) + ": Wrong choice number.\n")
+            print(colored("Error #" + str(errorCounter) + ": Wrong choice number.", "red"))
             wrongChoice = False # reset failure switch
 
         choice = input("Choice number: ")
@@ -194,7 +204,7 @@ def menu():
             exit()
         elif (choice.isnumeric()):
             if (choice == "1"):
-                chooseImagesAsIcons()
+                notification = chooseImagesAsIcons()
             else:
                 errorCounter = errorCounter + 1
                 wrongChoice = True
