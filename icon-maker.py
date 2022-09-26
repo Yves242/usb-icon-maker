@@ -132,7 +132,7 @@ def chooseImagesAsIcons():
 
                 if (indexBoundError): 
                     errorCount = errorCount + 1                   
-                    print("\nInput error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(iconFiles)) + ".")
+                    print("\nInput error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(imgFiles)) + ".")
                     # reset failure boolean switches
                     intFailed = False   
                     indexBoundError = False                
