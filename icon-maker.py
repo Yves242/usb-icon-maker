@@ -1,29 +1,31 @@
+from lib2to3.pytree import convert
 import os
-from turtle import clearscreen
+from PIL import Image
 
 # Simple function that cleans screen. Returns nothing
 def cleanScreen():
     os.system("cls")
 
-# Function that finds icon file. Returns string array
-def findIconFiles():
+# General function that finds files with specific extension. Returns string array
+def findExtensionFiles(extension):
 
     # variable
-    iconFiles = []
+    extensionFiles = []
     
     # start file search
     for path in os.scandir(os.getcwd()):
         if (path.is_file()):
-            str = path.name.upper()
-            if (str[len(str)-4:len(str)] == ".ICO"):
-                iconFiles.append(path.name)
+            str = path.name.lower()
+            if (str[len(str)-4:len(str)] == extension):
+                extensionFiles.append(path.name)
     
-    if (len(iconFiles) > 1):
-        iconFiles = sorted(iconFiles)
+    # sort for organization
+    if (len(extensionFiles) > 1):
+        extensionFiles = sorted(extensionFiles)
 
-    return iconFiles
+    return extensionFiles
 
-# General function that finds any file. Returns Boolean True or False
+# General function that finds any file. Returns Boolean
 def fileExists(filename):
 
     # start file search
@@ -33,8 +35,8 @@ def fileExists(filename):
     
     return False
 
-# Simple function that makes the 'autorun.inf' file. Returns Boolean True or False
-def makeAutorunFile(iconFile):
+# Simple function that makes the 'autorun.inf' file. Returns Boolean
+def makeAutorunFile(imgFile):
     
     # if 'autorun.inf' already exists, ask user what to do.
     if fileExists("autorun.inf"):
@@ -48,26 +50,52 @@ def makeAutorunFile(iconFile):
             elif (decision not in ("y", "Y")):
                 print("Please type either 'y' or 'n' only.\n")
 
-    # if 'autorun.inf' does not exist, or user decided to overwrite
+    # if 'autorun.inf' does not exist, or user decided to overwrite, start here.
+    icoFilename = imgFile
+
+    # if not ico file, convert to ico file.    
+    if (imgFile[len(imgFile)-4:len(imgFile)].lower() != ".ico"):
+        file = Image.open(imgFile)
+
+        # save image as proper filename
+        if (imgFile[-4] == "."): # if of format .jpg, .png, or .gif
+            icoFilename = imgFile[0:len(imgFile)-4] + ".ico"        
+        else: # else if of format .jpeg
+            icoFilename = imgFile[0:len(imgFile)-5] + ".ico"
+
+        # save using proper image filename
+        file.save(icoFilename)
+
+    # create new file 
     with open('autorun.inf', 'w') as f:
-        f.write('[AutoRun.Amd64]\nicon="' + iconFile + '"\n\n[AutoRun]\nicon="' + iconFile + '"')
+        f.write('[AutoRun.Amd64]\nicon="' + icoFilename + '"\n\n[AutoRun]\nicon="' + icoFilename + '"')
             
     print("Successfully generated new autorun.inf file.\n")
     return True
 
-# Start of all processes
-def start():
+# Function that lets user choose icons based on image files. Returns Boolean
+def chooseImagesAsIcons():
     
-    # clean screen, get icons list
+    # clean screen
     cleanScreen()
-    iconFiles = findIconFiles()
 
-    if (len(iconFiles) == 0):
+    # get usable image files list
+    pngFiles = findExtensionFiles(".png")
+    jpgFiles = findExtensionFiles(".jpg")
+    jpegFiles = findExtensionFiles(".jpeg")
+    gifFiles = findExtensionFiles(".gif")
+    icoFiles = findExtensionFiles(".ico")
+    imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles + icoFiles
 
-        print("We found out that there is still no icon files in your USB.")
+    if (len(imgFiles) == 0):
+
+        print("We found out that there are no image files in the current folder.")
+        print("Image files have extensions .png, .jpg, .jpeg, .gif, and .ico\n")
+        print("Place images inside the folder where this program is located. ('" + os.getcwd() + "').")
+
         return False
 
-    elif (len(iconFiles) > 0):     
+    elif (len(imgFiles) > 0):     
         
         # initialize for main while loop
         success = False
@@ -91,8 +119,8 @@ def start():
                 index = 0
 
                 # pass through each icon file found in array
-                for icon in iconFiles:
-                    print("[" + str(index+1) +"] " + icon)
+                for img in imgFiles:
+                    print("[" + str(index+1) +"] " + img)
                     index = index + 1
 
                 if (intFailed):
@@ -113,7 +141,7 @@ def start():
                 choice = input("\nWhat file would you like to use? (To exit, type 'exit') \nChoice number: ")
                 
                 # if user placed exit, stop function and program.
-                if (choice.upper == "EXIT"):
+                if (choice.upper() == "EXIT"):
                     print("User decided to exit. Program halted.")
                     return False
 
@@ -124,12 +152,12 @@ def start():
                     intFailed = True
 
             # At this point, the user has a valid integer choice input      
-            if ((int(choice) > 0) and (int(choice) <= len(iconFiles))):
+            if ((int(choice) > 0) and (int(choice) <= len(imgFiles))):
                 cleanScreen()
-                print("User selected file '" + iconFiles[int(choice)-1] + "'.\n")
+                print("User selected file '" + imgFiles[int(choice)-1] + "'.\n")
 
                 # make autorun.inf file using icon file of choice            
-                return makeAutorunFile(iconFiles[int(choice)-1])
+                return makeAutorunFile(imgFiles[int(choice)-1])
 
             else:
 
@@ -141,4 +169,37 @@ def start():
         print("Unexpected error occurred while finding icon files.")
         return False
 
-start()
+# This is where everything starts. Returns nothing
+def menu():
+
+    wrongChoice = False
+    errorCounter = 0
+
+    # Do always until user exits.
+    while (True):
+
+        cleanScreen()
+        print("What would you like to do?\n")
+        print("[1] Use images as icon for your USB Drive")
+        print("[0] Exit\n")
+
+        # notification text upon wrong choice
+        if (wrongChoice):
+            print("Error #" + str(errorCounter) + ": Wrong choice number.\n")
+            wrongChoice = False # reset failure switch
+
+        choice = input("Choice number: ")
+
+        if (choice.lower() in ("0", "exit")):
+            exit()
+        elif (choice.isnumeric()):
+            if (choice == "1"):
+                chooseImagesAsIcons()
+            else:
+                errorCounter = errorCounter + 1
+                wrongChoice = True
+        else:
+            errorCounter = errorCounter + 1
+            wrongChoice = True
+
+menu()
