@@ -4,17 +4,36 @@ from PIL import Image
 from colorama import init
 from termcolor import colored
 
+# DEFINE: used label identifier string
+usedIconIdentifierString = "-used-icon-label.ico"
+
 # Simple function that cleans screen. Returns nothing
 def cleanScreen():
     os.system("cls")
 
-# Simple function that hides autorun.inf and autorun.ico
-def hideFiles():
-    os.system('cmd /c "IF EXIST autorun.inf (attrib +h +r +a +s autorun.inf) & IF EXIST autorun.ico (attrib +h +r +a +s autorun.ico) & exit"')
+# Simple function that hides that unhides a given file
+def hideFile(filename):
+    os.system('cmd /c "IF EXIST ' + filename + ' (attrib +h +s +r +a ' + filename + ') & exit"')
 
-# Simple function that unhides autorun.inf and autorun.ico
-def unhideFiles():
-    os.system('cmd /c "IF EXIST autorun.ico (attrib -h -r -a -s autorun.inf) & IF EXIST autorun.ico (attrib -h -r -a -s autorun.ico) & exit"')
+# Simple function that unhides a given file
+def unhideFile(filename):
+    os.system('cmd /c "IF EXIST ' + filename + ' (attrib -h -r -s -a ' + filename + ') & exit"')
+
+# Simple function that dletes a given filename
+def deleteFile(filename):
+    os.system('cmd /c "IF EXIST ' + filename + ' (attrib -h -r -s -a ' + filename + ' & del ' + filename + ') & exit"')
+
+# Simple function that replaces cmd-sensitive special characters with "-"
+def removeSpecialCharacters(filename):
+    i=0
+    newFilename = ""
+    while (i<len(filename)):
+        if (filename[i] in (" ", "!", "%", "^", "&", "$", "*", "(", ")", "'", "\"", "\\")):
+            newFilename = newFilename+"-"
+        else:
+            newFilename = newFilename+filename[i]
+        i = i+1
+    return newFilename
 
 # General function that finds files with specific extension. Returns string array
 def findExtensionFiles(extension):
@@ -26,7 +45,7 @@ def findExtensionFiles(extension):
     for path in os.scandir(os.getcwd()):
         if (path.is_file()):
             str = path.name.lower()
-            if (str[len(str)-4:len(str)] == extension):
+            if (str[len(str)-len(extension):len(str)] == extension):
                 extensionFiles.append(path.name)
     
     # sort for organization
@@ -45,7 +64,7 @@ def fileExists(filename):
     
     return False
 
-# Simple function that makes the 'autorun.inf' file. Returns Boolean, String as notification
+# Simple function that converts an image to icon.
 def convertImageToIcon(imgFile):
 
     # this will be the new icon name
@@ -66,12 +85,11 @@ def convertImageToIcon(imgFile):
 
         return True, "Successfully converted '" + imgFile + "' to '" + icoFilename + "'."
 
-# Simple function that makes the 'autorun.inf' based on a given image (converted to 'autorun.ico' file 
-# from within this function). Returns Boolean, String as notification
+# Simple function that makes the 'autorun.inf' based on a given image. Returns Boolean, String as notification
 def makeAutorunFile(imgFile):
 
-    # unhide autorun.inf and autorun.ico
-    unhideFiles()
+    # unhide autorun.inf
+    unhideFile("autorun.inf")
     
     # Boolean error switch
     isError = False
@@ -95,16 +113,33 @@ def makeAutorunFile(imgFile):
             elif (decision not in ("y", "Y")):
                 isError = True
 
-    # if 'autorun.inf' does not exist, or user decided to overwrite, convert and save image as autorun.ico
+    # if 'autorun.inf' does not exist, or user decided to overwrite, convert and save image as icon file.
     file = Image.open(imgFile)
-    file.save("autorun.ico")
+
+    # find if it is using a 3-char or a 4-char extension 
+    if (imgFile[len(imgFile)-3:1] == "."):
+        usedIconName = removeSpecialCharacters(imgFile)[0:len(imgFile)-3] + usedIconIdentifierString 
+    else:
+        usedIconName = removeSpecialCharacters(imgFile)[0:len(imgFile)-4] + usedIconIdentifierString
+    
+    # remove old files with format *-used-icon-label.ico.
+    oldFiles = findExtensionFiles(usedIconIdentifierString)
+    if (len(oldFiles) > 0):
+        i=0
+        while (i< len(oldFiles)):
+            deleteFile(oldFiles[i])
+            i = i+1
+
+    # save file as such name without space
+    file.save(usedIconName) 
     
     # create new file 
     with open('autorun.inf', 'w') as f:
-        f.write('[AutoRun.Amd64]\nicon="autorun.ico"\n\n[AutoRun]\nicon="autorun.ico"')
+        f.write('[AutoRun.Amd64]\nicon="' + usedIconName + '"\n\n[AutoRun]\nicon="' + usedIconName + '"')
     
-    # hide 'autorun.inf' and 'autorun.ico' and exit function
-    hideFiles()
+    # hide 'autorun.inf' and the used icon file and exit function
+    hideFile("autorun.inf")
+    hideFile(usedIconName)
     return True, "Successfully added image as label."
 
 # Function that lets user choose icons based on image files. Returns Boolean, String as notification text
@@ -119,6 +154,16 @@ def chooseImagesAsIcons():
     jpegFiles = findExtensionFiles(".jpeg")
     gifFiles = findExtensionFiles(".gif")
     icoFiles = findExtensionFiles(".ico")
+
+    # remove the used icon file from icoFiles list
+    i=0
+    while (i<len(icoFiles)):
+        if (icoFiles[i][(len(icoFiles[i])-len(usedIconIdentifierString)):len(icoFiles[i])] == usedIconIdentifierString):
+            print("Removed item from library: " + icoFiles[i])
+            icoFiles.pop(i)
+        i = i+1
+
+    # compile into one list
     imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles + icoFiles
 
     # sort for organization
@@ -319,10 +364,10 @@ def menu():
             # reset boolean switch
             notification = (True, "") 
 
-        print(colored("USB Icon Maker ", "cyan") + colored("(", "magenta") + colored("v 3.0.0", "yellow") + colored(")\n", "magenta"))
+        print(colored("USB Icon Maker ", "cyan") + colored("(", "magenta") + colored("v 4.0.0", "yellow") + colored(")\n", "magenta"))
         print("What would you like to do?\n")
         print("[1] Use images as icon for your USB Drive")
-        print("[2] Convert images to .ico file (optional)")
+        print("[2] Convert an image to .ico file (optional)")
         print("[0] Exit\n")
 
         # notification text upon wrong choice
