@@ -4,8 +4,9 @@ from PIL import Image
 from colorama import init
 from termcolor import colored
 
-# DEFINE: used label identifier string
-usedIconIdentifierString = "-used-icon-label.ico"
+# DEFINES
+usedIconIdentifierString = "-used-icon-label.ico"   # used for label identifier string
+appVersion = "v 4.0.1"
 
 # Simple function that cleans screen. Returns nothing
 def cleanScreen():
@@ -64,7 +65,24 @@ def fileExists(filename):
     
     return False
 
-# Simple function that converts an image to icon.
+# function that validifies if application is in the right destination before execution. Returns Boolean and string notification
+def isOnLocation():
+    curLocation = os.getcwd()
+
+    # if currently on "C:/*"
+    if (curLocation[0] == "C"):
+        return False, "Application is running on the wrong location!\n\nApplication must be run on the topmost directory of a USB drive. \n(e.g. inside 'D:\\', but not inside 'C:\\...')\n\nClose this application and try again."
+
+    # if not on topmost directory
+    if (len(curLocation) != 3):
+        return False, "Application is running on the wrong location!\n\nApplication must be running on '" + curLocation[0:3]+ "' but not on '" + curLocation + "'.\n\nClose this application and try again."
+
+    # if not on C and is currently on topmost directory
+    else:
+        return True, "Application is running on the topmost directory of USB drive."
+
+
+# function that converts an image to icon.
 def convertImageToIcon(imgFile):
 
     # this will be the new icon name
@@ -85,7 +103,7 @@ def convertImageToIcon(imgFile):
 
         return True, "Successfully converted '" + imgFile + "' to '" + icoFilename + "'."
 
-# Simple function that makes the 'autorun.inf' based on a given image. Returns Boolean, String as notification
+# function that makes the 'autorun.inf' based on a given image. Returns Boolean, String as notification
 def makeAutorunFile(imgFile):
 
     # unhide autorun.inf
@@ -338,15 +356,12 @@ def chooseImageToConvert():
     else:
         return False, "Unexpected program error occurred while searching for files."
 
-# This is where everything starts. Returns nothing
-def menu():
-    
-    # initialize for colors
-    init()
-    
+# This occurs if it was detected that application is running on topmost directory.
+def menu(validityResult):
+        
     wrongChoice = False
     errorCounter = 0
-    notification = (True, "")
+    notification = validityResult
 
     # Do always until user exits.
     while (True):
@@ -364,7 +379,7 @@ def menu():
             # reset boolean switch
             notification = (True, "") 
 
-        print(colored("USB Icon Maker ", "cyan") + colored("(", "magenta") + colored("v 4.0.0", "yellow") + colored(")\n", "magenta"))
+        print(colored("USB Icon Maker ", "cyan") + colored("(", "magenta") + colored(appVersion, "yellow") + colored(")\n", "magenta"))
         print("What would you like to do?\n")
         print("[1] Use images as icon for your USB Drive")
         print("[2] Convert an image to .ico file (optional)")
@@ -391,4 +406,22 @@ def menu():
             errorCounter = errorCounter + 1
             wrongChoice = True
 
-menu()
+# Executes menu() if and only if it is running on correct path
+def start():
+    
+    # initialize for colors
+    init()
+    
+    # print some info
+    print(colored("USB Icon Maker ", "cyan") + colored("(", "magenta") + colored(appVersion, "yellow") + colored(")\n", "magenta"))
+    print("Performing app location check...\n")
+
+    locationCheck = isOnLocation()
+
+    if (locationCheck[0] == True):
+        menu(locationCheck)
+    else:        
+        print(colored(locationCheck[1], "yellow"))
+        x = input("\n\n")
+
+start()
