@@ -1,12 +1,33 @@
-from lib2to3.pytree import convert
-import os
+from distutils.log import error
+from locale import atoi
+import os, string
+import subprocess 
 from PIL import Image
 from colorama import init
 from termcolor import colored
 
 # DEFINES
 usedIconIdentifierString = "-used-icon-label.ico"   # used for label identifier string
-appVersion = "v 4.0.1"
+appVersion = "v 4.1.0"
+
+# Simple function that gets available drives and their names. Returns array
+def getDrivesAndNames():
+
+    # 1-line code below adapted from https://stackoverflow.com/questions/827371/is-there-a-way-to-list-all-the-available-windows-drives 
+    available_drives = ['%s:' % d for d in string.ascii_uppercase if os.path.exists('%s:' % d)]
+
+    # stores final return array
+    drivesAndLetters = []
+
+    for driveletter in available_drives:
+        
+        # 1-line code below adopted from https://stackoverflow.com/questions/8319264/how-can-i-get-the-name-of-a-drive-in-python
+        drivename = subprocess.check_output(["cmd","/c vol "+driveletter]).decode().split("\r\n")[0]
+
+        if (driveletter[0] != "C"):   # Do not add to list if "C"  
+            drivesAndLetters.append(driveletter + drivename[21:-1] + drivename[-1])
+
+    return drivesAndLetters
 
 # Simple function that cleans screen. Returns nothing
 def cleanScreen():
@@ -37,13 +58,13 @@ def removeSpecialCharacters(filename):
     return newFilename
 
 # General function that finds files with specific extension. Returns string array
-def findExtensionFiles(extension):
+def findExtensionFiles(dir, extension):
 
     # variable
     extensionFiles = []
 
     # start file search
-    for path in os.scandir(os.getcwd()):
+    for path in os.scandir(dir):
         if (path.is_file()):
             str = path.name.lower()
             if (str[len(str)-len(extension):len(str)] == extension):
@@ -64,23 +85,6 @@ def fileExists(filename):
             return True
     
     return False
-
-# function that validifies if application is in the right destination before execution. Returns Boolean and string notification
-def isOnLocation():
-    curLocation = os.getcwd()
-
-    # if currently on "C:/*"
-    if (curLocation[0] == "C"):
-        return False, "Application is running on the wrong location!\n\nApplication must be run on the topmost directory of a USB drive. \n(e.g. inside 'D:\\', but not inside 'C:\\...')\n\nClose this application and try again."
-
-    # if not on topmost directory
-    if (len(curLocation) != 3):
-        return False, "Application is running on the wrong location!\n\nApplication must be running on '" + curLocation[0:3]+ "' but not on '" + curLocation + "'.\n\nClose this application and try again."
-
-    # if not on C and is currently on topmost directory
-    else:
-        return True, "Application is running on the topmost directory of USB drive."
-
 
 # function that converts an image to icon.
 def convertImageToIcon(imgFile):
@@ -104,20 +108,20 @@ def convertImageToIcon(imgFile):
         return True, "Successfully converted '" + imgFile + "' to '" + icoFilename + "'."
 
 # function that makes the 'autorun.inf' based on a given image. Returns Boolean, String as notification
-def makeAutorunFile(imgFile):
+def makeAutorunFile(drive, imgFile):
 
     # unhide autorun.inf
-    unhideFile("autorun.inf")
-    
+    unhideFile(drive + "autorun.inf")
+
     # Boolean error switch
     isError = False
 
     # if 'autorun.inf' already exists, ask user what to do.
-    if fileExists("autorun.inf"):
+    if fileExists(drive + "autorun.inf"):
         decision = ""
         while (decision not in ("y", "Y")):
             
-            print("User selected image file '" + colored((imgFile), "green") + "'.\n")
+            print("User selected image file '" + colored((drive + imgFile), "green") + "'.\n")
             print("Configuration file 'autorun.inf' already exists. \nYou may have already placed an icon on this device before.\n\n")
             
             if (isError):
@@ -132,7 +136,7 @@ def makeAutorunFile(imgFile):
                 isError = True
 
     # if 'autorun.inf' does not exist, or user decided to overwrite, convert and save image as icon file.
-    file = Image.open(imgFile)
+    file = Image.open(drive + imgFile)
 
     # find if it is using a 3-char or a 4-char extension 
     if (imgFile[len(imgFile)-3:1] == "."):
@@ -141,7 +145,7 @@ def makeAutorunFile(imgFile):
         usedIconName = removeSpecialCharacters(imgFile)[0:len(imgFile)-4] + usedIconIdentifierString
     
     # remove old files with format *-used-icon-label.ico.
-    oldFiles = findExtensionFiles(usedIconIdentifierString)
+    oldFiles = findExtensionFiles(drive, usedIconIdentifierString)
     if (len(oldFiles) > 0):
         i=0
         while (i< len(oldFiles)):
@@ -149,15 +153,16 @@ def makeAutorunFile(imgFile):
             i = i+1
 
     # save file as such name without space
-    file.save(usedIconName) 
+    unhideFile(drive + usedIconName)
+    file.save(drive + usedIconName) 
     
     # create new file 
-    with open('autorun.inf', 'w') as f:
+    with open(drive + 'autorun.inf', 'w') as f:
         f.write('[AutoRun.Amd64]\nicon="' + usedIconName + '"\n\n[AutoRun]\nicon="' + usedIconName + '"')
     
     # hide 'autorun.inf' and the used icon file and exit function
-    hideFile("autorun.inf")
-    hideFile(usedIconName)
+    hideFile(drive + "autorun.inf")
+    hideFile(drive + usedIconName)
     return True, "Successfully added image as label."
 
 # Function that lets user choose icons based on image files. Returns Boolean, String as notification text
@@ -166,99 +171,141 @@ def chooseImagesAsIcons():
     # clean screen
     cleanScreen()
 
-    # get usable image files list
-    pngFiles = findExtensionFiles(".png")
-    jpgFiles = findExtensionFiles(".jpg")
-    jpegFiles = findExtensionFiles(".jpeg")
-    gifFiles = findExtensionFiles(".gif")
-    icoFiles = findExtensionFiles(".ico")
+    # Get usable image file list from given drive
+    driveArray = getDrivesAndNames()
 
-    # remove the used icon file from icoFiles list
-    i=0
-    while (i<len(icoFiles)):
-        if (icoFiles[i][(len(icoFiles[i])-len(usedIconIdentifierString)):len(icoFiles[i])] == usedIconIdentifierString):
-            print("Removed item from library: " + icoFiles[i])
-            icoFiles.pop(i)
-        i = i+1
+    # if driveArray has no element
+    if (len(driveArray) == 0):
+        return False, "There are no USB devices or other storage devices!"
 
-    # compile into one list
-    imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles + icoFiles
+    elif (len(driveArray) > 0):
 
-    # sort for organization
-    if (len(imgFiles) > 1):
-        imgFiles = sorted(imgFiles)    
-
-    if (len(imgFiles) == 0):      
-
-        return False, "(see below)\nWe found out that there are no image files in the current folder.\nImage files have extensions .png, .jpg, .jpeg, .gif, and .ico\n\nPlace images inside the folder where this program is located. \n('" + os.getcwd() + "')."
-
-    elif (len(imgFiles) > 0):     
-        
-        # initialize for main while loop
-        success = False
-        indexBoundError = False
         errorCount = 0
+        driveChoice = ""
 
-        # Do until successful or user chose exit
-        while (not success):
+        while(True):
+            cleanScreen()
+
+            print("The program found these drives on your device:\n")
+            buffer = 1
+
+            for element in driveArray:
+                print("[" + str(buffer) + "] " + element)
+                buffer = buffer + 1
+            print()
+
+            if (errorCount > 0):
+                print(colored("Error #" + str(errorCount) + ": Wrong choice number.", "red"))
+
+            driveChoice = input("Which drive would you like to add a USB icon on? (To exit, type 'exit')\nChoice number: ")
+
+            # check for exit prompt
+            if (driveChoice.lower() in ["exit"]):
+                return(False, "User decided to exit option 1.")
+
+            # else, check if numeric
+            elif (driveChoice.isnumeric()):
+                if (atoi(driveChoice) <= len(driveArray)):
+                    if (atoi(driveChoice) > 0):
+                        break
+
+            errorCount = errorCount + 1
+
+
+        drive = driveArray[atoi(driveChoice)-1][0] + ":/"
+
+        # get usable image files list
+        pngFiles = findExtensionFiles(drive, ".png")
+        jpgFiles = findExtensionFiles(drive, ".jpg")
+        jpegFiles = findExtensionFiles(drive, ".jpeg")
+        gifFiles = findExtensionFiles(drive, ".gif")
+        icoFiles = findExtensionFiles(drive, ".ico")
+
+        # remove the used icon file from icoFiles list
+        i=0
+        while (i<len(icoFiles)):
+            if (icoFiles[i][(len(icoFiles[i])-len(usedIconIdentifierString)):len(icoFiles[i])] == usedIconIdentifierString):
+                icoFiles.pop(i)
+            i = i+1
+
+        # compile into one list
+        imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles + icoFiles
+
+        # sort for organization
+        if (len(imgFiles) > 1):
+            imgFiles = sorted(imgFiles)    
+
+        if (len(imgFiles) == 0):      
+
+            return False, "(see below)\nWe found out that there are no image files in the current folder.\nImage files have extensions .png, .jpg, .jpeg, .gif, and .ico\n\nPlace images inside the folder where this program is located. \n('" + os.getcwd() + "')."
+
+        elif (len(imgFiles) > 0):     
             
-            # initialize for inner while loop
-            intFailed = False
-            choice = "" 
+            # initialize for main while loop
+            success = False
+            indexBoundError = False
+            errorCount = 0
 
-            # do while choice is not an integer
-            while (not choice.isnumeric()):
-                cleanScreen()
+            # Do until successful or user chose exit
+            while (not success):
                 
-                print("The program found these icon files in the current folder/directory:\n")
-                
-                # index for each element in icon array
-                index = 0
+                # initialize for inner while loop
+                intFailed = False
+                choice = "" 
 
-                # pass through each icon file found in array
-                for img in imgFiles:
-                    print("[" + str(index+1) +"] " + img)
-                    index = index + 1
-                print("")
+                # do while choice is not an integer
+                while (not choice.isnumeric()):
+                    cleanScreen()
+                    
+                    print("The program found these images on directory '" + colored(drive, "green") + "':\n")
+                    
+                    # index for each element in icon array
+                    index = 0
 
-                if (intFailed):
-                    errorCount = errorCount + 1
-                    print(colored("Input error #" + str(errorCount) + ": Please only use numbers.", "red"))
-                    # reset failure boolean switches
-                    intFailed = False   
-                    indexBoundError = False
+                    # pass through each icon file found in array
+                    for img in imgFiles:
+                        print("[" + str(index+1) +"] " + img)
+                        index = index + 1
+                    print("")
 
-                if (indexBoundError): 
-                    errorCount = errorCount + 1                   
-                    print(colored("Input error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(imgFiles)) + ".", "red"))
-                    # reset failure boolean switches
-                    intFailed = False   
-                    indexBoundError = False                
+                    if (intFailed):
+                        errorCount = errorCount + 1
+                        print(colored("Input error #" + str(errorCount) + ": Please only use numbers.", "red"))
+                        # reset failure boolean switches
+                        intFailed = False   
+                        indexBoundError = False
 
-                # ask user what file to use
-                choice = input("What file would you like to use? (To exit, type 'exit') \nChoice number: ")
-                
-                # if user placed exit, stop function and program.
-                if (choice.upper() == "EXIT"):
-                    return False, "User decided to exit option 1."
+                    if (indexBoundError): 
+                        errorCount = errorCount + 1                   
+                        print(colored("Input error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(imgFiles)) + ".", "red"))
+                        # reset failure boolean switches
+                        intFailed = False   
+                        indexBoundError = False                
 
-                # int validity check
-                if (choice.isnumeric()):
-                    intFailed = False
+                    # ask user what file to use
+                    choice = input("What file would you like to use? (To exit, type 'exit') \nChoice number: ")
+                    
+                    # if user placed exit, stop function and program.
+                    if (choice.upper() == "EXIT"):
+                        return False, "User decided to exit option 1."
+
+                    # int validity check
+                    if (choice.isnumeric()):
+                        intFailed = False
+                    else:
+                        intFailed = True
+
+                # At this point, the user has a valid integer choice input      
+                if ((int(choice) > 0) and (int(choice) <= len(imgFiles))):
+                    cleanScreen()
+
+                    # make autorun.inf file using icon file of choice            
+                    return makeAutorunFile(drive, imgFiles[int(choice)-1])
+
                 else:
-                    intFailed = True
 
-            # At this point, the user has a valid integer choice input      
-            if ((int(choice) > 0) and (int(choice) <= len(imgFiles))):
-                cleanScreen()
-
-                # make autorun.inf file using icon file of choice            
-                return makeAutorunFile(imgFiles[int(choice)-1])
-
-            else:
-
-                # index bound error
-                indexBoundError = True
+                    # index bound error
+                    indexBoundError = True
 
     else:
         return False, "Unexpected program error occurred while searching for files."
@@ -270,10 +317,10 @@ def chooseImageToConvert():
     cleanScreen()
 
     # get usable image files list
-    pngFiles = findExtensionFiles(".png")
-    jpgFiles = findExtensionFiles(".jpg")
-    jpegFiles = findExtensionFiles(".jpeg")
-    gifFiles = findExtensionFiles(".gif")
+    pngFiles = findExtensionFiles(os.getcwd(), ".png")
+    jpgFiles = findExtensionFiles(os.getcwd(), ".jpg")
+    jpegFiles = findExtensionFiles(os.getcwd(), ".jpeg")
+    gifFiles = findExtensionFiles(os.getcwd(), ".gif")
     imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles
 
     # sort for organization
@@ -357,11 +404,11 @@ def chooseImageToConvert():
         return False, "Unexpected program error occurred while searching for files."
 
 # This occurs if it was detected that application is running on topmost directory.
-def menu(validityResult):
+def menu():
         
     wrongChoice = False
     errorCounter = 0
-    notification = validityResult
+    notification = (True, "")
 
     # Do always until user exits.
     while (True):
@@ -406,22 +453,4 @@ def menu(validityResult):
             errorCounter = errorCounter + 1
             wrongChoice = True
 
-# Executes menu() if and only if it is running on correct path
-def start():
-    
-    # initialize for colors
-    init()
-    
-    # print some info
-    print(colored("USB Icon Maker ", "cyan") + colored("(", "magenta") + colored(appVersion, "yellow") + colored(")\n", "magenta"))
-    print("Performing app location check...\n")
-
-    locationCheck = isOnLocation()
-
-    if (locationCheck[0] == True):
-        menu(locationCheck)
-    else:        
-        print(colored(locationCheck[1], "yellow"))
-        x = input("\n\n")
-
-start()
+menu()
