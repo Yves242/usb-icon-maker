@@ -2,7 +2,7 @@
  True,
  False,
  False,
- 'C:\\Users\\Yves\\Desktop\\Programming\\usb-icon-maker\\usb-icon-maker.ico',
+ 'C:\\Users\\Yves\\Desktop\\Programming\\usb-icon-maker\\usb-icon-maker-2.ico',
  None,
  False,
  False,
@@ -161,7 +161,7 @@
  [],
  False,
  False,
- 1665539820,
+ 1665560270,
  [('run.exe',
    'C:\\Users\\Yves\\AppData\\Local\\Programs\\Python\\Python310\\lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit\\run.exe',
    'EXECUTABLE')])
