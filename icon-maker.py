@@ -1,14 +1,13 @@
-from distutils.log import error
+import os, string, subprocess
 from locale import atoi
-import os, string
-import subprocess 
 from PIL import Image
-from colorama import init
 from termcolor import colored
+from tkinter import filedialog, Tk
+from pathlib import Path
 
 # DEFINES
 usedIconIdentifierString = "-used-icon-label.ico"   # used for label identifier string
-appVersion = "v 4.1.0"
+appVersion = "v 4.2.0"
 
 # Simple function that gets available drives and their names. Returns array
 def getDrivesAndNames():
@@ -28,6 +27,23 @@ def getDrivesAndNames():
             drivesAndLetters.append(driveletter + drivename[21:-1] + drivename[-1])
 
     return drivesAndLetters
+
+# Simple function that prompts open file. Returns array
+def openImageFiles():
+    
+    # prompt window
+    root = Tk()
+    root.attributes("-topmost", 1)
+    root.withdraw()
+    imagePathsTuple = filedialog.askopenfilenames(title="Open image files", filetypes=[("image files","*.png"), ("image files","*.jpg"), ("image files","*.jpeg")])
+    root.destroy()
+
+    # convert to array
+    imagePaths = []
+    for image in imagePathsTuple:
+        imagePaths.append(image)
+        
+    return imagePaths
 
 # Simple function that cleans screen. Returns nothing
 def cleanScreen():
@@ -89,23 +105,22 @@ def fileExists(filename):
 # function that converts an image to icon.
 def convertImageToIcon(imgFile):
 
+    imgSplitted = imgFile.split("/")
+
     # this will be the new icon name
-    icoFilename = imgFile
+    icoFilename = imgSplitted[-1]
+    
+    file = Image.open(Path(imgFile))
 
-    # if not .ico file, convert to ico file.    
-    if (imgFile[len(imgFile)-4:len(imgFile)].lower() != ".ico"):
-        file = Image.open(imgFile)
+    # save image as proper filename
+    if (imgFile[-4] == "."): # if of format .jpg, .png, or .gif
+        icoFilename = imgFile[0:len(imgFile)-4] + ".ico"        
+    else: # else if of format .jpeg
+        icoFilename = imgFile[0:len(imgFile)-5] + ".ico"
 
-        # save image as proper filename
-        if (imgFile[-4] == "."): # if of format .jpg, .png, or .gif
-            icoFilename = imgFile[0:len(imgFile)-4] + ".ico"        
-        else: # else if of format .jpeg
-            icoFilename = imgFile[0:len(imgFile)-5] + ".ico"
+    # save using proper image filename
+    file.save(icoFilename)
 
-        # save using proper image filename
-        file.save(icoFilename)
-
-        return True, "Successfully converted '" + imgFile + "' to '" + icoFilename + "'."
 
 # function that makes the 'autorun.inf' based on a given image. Returns Boolean, String as notification
 def makeAutorunFile(drive, imgFile):
@@ -315,90 +330,23 @@ def chooseImageToConvert():
     
     # clean screen
     cleanScreen()
-
-    # get usable image files list
-    pngFiles = findExtensionFiles(os.getcwd(), ".png")
-    jpgFiles = findExtensionFiles(os.getcwd(), ".jpg")
-    jpegFiles = findExtensionFiles(os.getcwd(), ".jpeg")
-    gifFiles = findExtensionFiles(os.getcwd(), ".gif")
-    imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles
-
-    # sort for organization
-    if (len(imgFiles) > 1):
-        imgFiles = sorted(imgFiles)    
+    
+    # Get image files
+    imgFiles = openImageFiles()
 
     if (len(imgFiles) == 0):      
 
-        return False, "(see below)\nThere are no image files in the main directory where this program is located.\nImage files have extensions .png, .jpg, .jpeg, .gif, and .ico\n\nPlace images inside the folder where this program is located. \n('" + os.getcwd() + "')."
+        return False, "User cancelled file conversion operation."
 
     elif (len(imgFiles) > 0):     
         
-        # initialize for main while loop
-        success = False
-        indexBoundError = False
-        errorCount = 0
-
-        # Do until successful or user chose exit
-        while (not success):
-            
-            # initialize for inner while loop
-            intFailed = False
-            choice = "" 
-
-            # do while choice is not an integer
-            while (not choice.isnumeric()):
-                cleanScreen()
-                
-                print("The program found these image files in the current folder/directory:\n")
-                
-                # index for each element in icon array
-                index = 0
-
-                # pass through each icon file found in array
-                for img in imgFiles:
-                    print("[" + str(index+1) +"] " + img)
-                    index = index + 1
-                print("")
-
-                if (intFailed):
-                    errorCount = errorCount + 1
-                    print(colored("Input error #" + str(errorCount) + ": Please only use numbers.", "red"))
-                    # reset failure boolean switches
-                    intFailed = False   
-                    indexBoundError = False
-
-                if (indexBoundError): 
-                    errorCount = errorCount + 1                   
-                    print(colored("Input error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(imgFiles)) + ".", "red"))
-                    # reset failure boolean switches
-                    intFailed = False   
-                    indexBoundError = False                
-
-                # ask user what file to use
-                choice = input("What file would you like to use? (To exit, type 'exit') \nChoice number: ")
-                
-                # if user placed exit, stop function and program.
-                if (choice.upper() == "EXIT"):
-                    return False, "User decided to exit option 1."
-
-                # int validity check
-                if (choice.isnumeric()):
-                    intFailed = False
-                else:
-                    intFailed = True
-
-            # At this point, the user has a valid integer choice input      
-            if ((int(choice) > 0) and (int(choice) <= len(imgFiles))):
-                cleanScreen()
-                print("User selected image file '" + colored(imgFiles[int(choice)-1], "green") + "'.\n")
-
-                # convert image to .ico file           
-                return convertImageToIcon(imgFiles[int(choice)-1])
-
-            else:
-
-                # index bound error
-                indexBoundError = True
+        for eachImage in imgFiles:
+            convertImageToIcon(eachImage)
+        
+        if (len(imgFiles) == 1):
+            return True, "Successfully converted " + str(len(imgFiles)) + " image file to .ico file."
+        else:
+            return True, "Successfully converted " + str(len(imgFiles)) + " image files to .ico files."            
 
     else:
         return False, "Unexpected program error occurred while searching for files."
