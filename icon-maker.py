@@ -1,4 +1,4 @@
-import os, string, subprocess
+import os, string, subprocess, shutil, time
 from locale import atoi
 from PIL import Image
 from termcolor import colored
@@ -7,9 +7,9 @@ from pathlib import Path
 
 # DEFINES
 usedIconIdentifierString = "-used-icon-label.ico"   # used for label identifier string
-appVersion = "v 4.2.0"
+appVersion = "v 4.3.0"
 
-# Simple function that gets available drives and their names. Returns array
+# Simple cmd-based function that gets available drives and their names. Returns array
 def getDrivesAndNames():
 
     # 1-line code below adapted from https://stackoverflow.com/questions/827371/is-there-a-way-to-list-all-the-available-windows-drives 
@@ -28,7 +28,18 @@ def getDrivesAndNames():
 
     return drivesAndLetters
 
-# Simple function that prompts open file. Returns array
+# Simple function that counts down until a given second, and will prompt message.
+def countdown(seconds, message):
+    while (seconds >= 0):
+        cleanScreen()
+        if (seconds == 0):
+            print(message + " " + str(seconds) + ".")
+        else:
+            print(message + " " + str(seconds))
+            time.sleep(1)
+        seconds = seconds-1
+
+# Simple function that prompts open file. Returns array of image path/s
 def openImageFiles():
     
     # prompt window
@@ -44,6 +55,18 @@ def openImageFiles():
         imagePaths.append(image)
         
     return imagePaths
+
+# Simple function that prompts open file. Returns string of single image path 
+def openImageFile():
+    
+    # prompt window
+    root = Tk()
+    root.attributes("-topmost", 1)
+    root.withdraw()
+    imagePathTuple = filedialog.askopenfilename(title="Open image file", filetypes=[("image file","*.png"), ("image file","*.jpg"), ("image file","*.jpeg")])
+    root.destroy()
+
+    return imagePathTuple
 
 # Simple function that cleans screen. Returns nothing
 def cleanScreen():
@@ -102,14 +125,14 @@ def fileExists(filename):
     
     return False
 
-# function that converts an image to icon.
+# function that converts an image to icon. Returns image file name.
 def convertImageToIcon(imgFile):
 
+    # Get image file name
     imgSplitted = imgFile.split("/")
-
-    # this will be the new icon name
     icoFilename = imgSplitted[-1]
-    
+    returnval = icoFilename
+
     file = Image.open(Path(imgFile))
 
     # save image as proper filename
@@ -121,6 +144,7 @@ def convertImageToIcon(imgFile):
     # save using proper image filename
     file.save(icoFilename)
 
+    return returnval
 
 # function that makes the 'autorun.inf' based on a given image. Returns Boolean, String as notification
 def makeAutorunFile(drive, imgFile):
@@ -180,8 +204,11 @@ def makeAutorunFile(drive, imgFile):
     hideFile(drive + usedIconName)
     return True, "Successfully added image as label."
 
-# Function that lets user choose icons based on image files. Returns Boolean, String as notification text
-def chooseImagesAsIcons():
+
+# Main functions below
+
+# Function that lets user choose image as icon for a specific drive. Returns Boolean, String as notification text
+def chooseImageAsDriveIcon():
     
     # clean screen
     cleanScreen()
@@ -198,6 +225,7 @@ def chooseImagesAsIcons():
         errorCount = 0
         driveChoice = ""
 
+        # Do this until user selects drive to place icon
         while(True):
             cleanScreen()
 
@@ -226,111 +254,50 @@ def chooseImagesAsIcons():
 
             errorCount = errorCount + 1
 
-
+        # main drive letter of format "X:/"
         drive = driveArray[atoi(driveChoice)-1][0] + ":/"
 
-        # get usable image files list
-        pngFiles = findExtensionFiles(drive, ".png")
-        jpgFiles = findExtensionFiles(drive, ".jpg")
-        jpegFiles = findExtensionFiles(drive, ".jpeg")
-        gifFiles = findExtensionFiles(drive, ".gif")
-        icoFiles = findExtensionFiles(drive, ".ico")
+        # Start of modified function 
+        cleanScreen()
+        
+        # Show notification
+        print("Selecting image...")
+        time.sleep(0.25)
 
-        # remove the used icon file from icoFiles list
-        i=0
-        while (i<len(icoFiles)):
-            if (icoFiles[i][(len(icoFiles[i])-len(usedIconIdentifierString)):len(icoFiles[i])] == usedIconIdentifierString):
-                icoFiles.pop(i)
-            i = i+1
+        # Get image files
+        imgFile = openImageFile()
 
-        # compile into one list
-        imgFiles = pngFiles + jpgFiles + jpegFiles + gifFiles + icoFiles
+        if (len(imgFile) == 0):      
+            return False, "User cancelled selecting image."
 
-        # sort for organization
-        if (len(imgFiles) > 1):
-            imgFiles = sorted(imgFiles)    
+        else:
+            convertedIcon = convertImageToIcon(imgFile)
 
-        if (len(imgFiles) == 0):      
+            # Get proper icon location
+            convertedIconLocation = imgFile
+            if (imgFile[-4] == "."): # if of format .jpg, .png, or .gif
+                convertedIconLocation = convertedIconLocation[0:len(convertedIconLocation)-4] + ".ico"        
+            else: # else if of format .jpeg
+                convertedIconLocation = convertedIconLocation[0:len(convertedIconLocation)-5] + ".ico"
 
-            return False, "(see below)\nWe found out that there are no image files in the current folder.\nImage files have extensions .png, .jpg, .jpeg, .gif, and .ico\n\nPlace images inside the folder where this program is located. \n('" + os.getcwd() + "')."
+            shutil.copyfile(convertedIconLocation, drive+convertedIcon)
+            makeAutorunFile(drive, convertedIcon)
+            return True, "Successfully assigned '" + convertedIcon + "' to drive '" + drive[0] + ":'."            
 
-        elif (len(imgFiles) > 0):     
-            
-            # initialize for main while loop
-            success = False
-            indexBoundError = False
-            errorCount = 0
-
-            # Do until successful or user chose exit
-            while (not success):
-                
-                # initialize for inner while loop
-                intFailed = False
-                choice = "" 
-
-                # do while choice is not an integer
-                while (not choice.isnumeric()):
-                    cleanScreen()
-                    
-                    print("The program found these images on directory '" + colored(drive, "green") + "':\n")
-                    
-                    # index for each element in icon array
-                    index = 0
-
-                    # pass through each icon file found in array
-                    for img in imgFiles:
-                        print("[" + str(index+1) +"] " + img)
-                        index = index + 1
-                    print("")
-
-                    if (intFailed):
-                        errorCount = errorCount + 1
-                        print(colored("Input error #" + str(errorCount) + ": Please only use numbers.", "red"))
-                        # reset failure boolean switches
-                        intFailed = False   
-                        indexBoundError = False
-
-                    if (indexBoundError): 
-                        errorCount = errorCount + 1                   
-                        print(colored("Input error #" + str(errorCount) + ": Please only use numbers shown above, ranging from 1 to " + str(len(imgFiles)) + ".", "red"))
-                        # reset failure boolean switches
-                        intFailed = False   
-                        indexBoundError = False                
-
-                    # ask user what file to use
-                    choice = input("What file would you like to use? (To exit, type 'exit') \nChoice number: ")
-                    
-                    # if user placed exit, stop function and program.
-                    if (choice.upper() == "EXIT"):
-                        return False, "User decided to exit option 1."
-
-                    # int validity check
-                    if (choice.isnumeric()):
-                        intFailed = False
-                    else:
-                        intFailed = True
-
-                # At this point, the user has a valid integer choice input      
-                if ((int(choice) > 0) and (int(choice) <= len(imgFiles))):
-                    cleanScreen()
-
-                    # make autorun.inf file using icon file of choice            
-                    return makeAutorunFile(drive, imgFiles[int(choice)-1])
-
-                else:
-
-                    # index bound error
-                    indexBoundError = True
 
     else:
         return False, "Unexpected program error occurred while searching for files."
 
-# Function that lets user choose icons based on image files. Returns Boolean, String as notification text
+# Function that lets user choose icon/s based on image files. Returns Boolean, String as notification text
 def chooseImageToConvert():
     
     # clean screen
     cleanScreen()
     
+    # Show notification
+    print("Selecting image...")
+    time.sleep(0.25)
+
     # Get image files
     imgFiles = openImageFiles()
 
@@ -391,7 +358,7 @@ def menu():
             exit()
         elif (choice.isnumeric()):
             if (choice == "1"):
-                notification = chooseImagesAsIcons()
+                notification = chooseImageAsDriveIcon()
             elif (choice == "2"):
                 notification = chooseImageToConvert()
             else:
